@@ -53,8 +53,12 @@ Ruby on Rails、画面のデザインやUI/UX設計については経験が浅�
 | バックエンド | Ruby 3.2.2 / Ruby on Rails 7.0.8.1 |
 | データベース | PostgreSQL |
 
-### 記事の目標・記事で達成できるゴール
-
+### この記事のゴール
+- Ruby on Railsの以下の機能を使ったステップ入力フォームの実装方法がわかる
+  -  sessionメソッド
+  - `ActiveModel::Modelモジュール`
+  - `ActiveModel::Validationsモジュール`
+- ステップ入力フォームの `UI/UX設計`のポイントがわかる
 
 ### ステップ入力とは
 
