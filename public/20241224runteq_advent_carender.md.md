@@ -1,5 +1,5 @@
 ---
-title: 20241224runteq_advent_carender.md
+title: [Rails7]ステップ入力フォームの作り方
 tags:
   - ''
 private: false
@@ -10,3 +10,4 @@ slide: false
 ignorePublish: false
 ---
 # new article body
+テスト
