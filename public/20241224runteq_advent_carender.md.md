@@ -93,6 +93,71 @@ https://ds-b.jp/dsmagazine/what-is-stepform/
 **※【after】ステップ入力フォーム採用後**
 <img width="auto" src="https://i.gyazo.com/588d5b635d6d500027f11a71d3c12a80.gif">
 
+### 実装概要
+::: note info
+- [ ] データベース
+- [ ] 全体像（画面）
+- [ ] データの処理の流れ
+:::
+
+以下は、本記事のステップ入力フォームに関わるcompetition_recordsテーブルのカラム情報です。
+```mermaid
+erDiagram
+  competition_records {
+          int id PK "ID"
+          int competition_id FK "competitionsレコードのID"
+          float weight "検量体重"
+          float squat_first_attempt "スクワット第1試技"
+          float squat_second_attempt "スクワット第2試技"
+          float squat_third_attempt "スクワット第3試技"
+          float benchpress_first_attempt "ベンチプレス第1試技"
+          float benchpress_second_attempt "ベンチプレス第2試技"
+          float benchpress_third_attempt "ベンチプレス第3試技"
+          float deadlift_first_attempt "デッドリフト第1試技"
+          float deadlift_second_attempt "デッドリフト第2試技"
+          float deadlift_third_attempt "デッドリフト第3試技"
+          int squat_first_attempt_result "スクワット第1試技判定結果"
+          int squat_second_attempt_result "スクワット第2試技判定結果"
+          int squat_third_attempt_result "スクワット第3試技判定結果"
+          int benchpress_first_attempt_result "ベンチプレス第1試技判定結果"
+          int benchpress_second_attempt_result "ベンチプレス第2試技判定結果"
+          int benchpress_third_attempt_result "ベンチプレス第3試技判定結果"
+          int deadlift_first_attempt_result "デッドリフト第1試技判定結果"
+          int deadlift_second_attempt_result "デッドリフト第2試技判定結果"
+          int deadlift_third_attempt_result "デッドリフト第3試技判定結果"
+          text comment "反省点コメント"
+          datetime created_at "作成日時"
+          datetime updated_at "更新日時"
+      }
+```
+competition_recordsテーブル用の入力フォームを5ステップに分割します。
+1. 検量体重入力フォーム
+2. スクワット試技結果入力フォーム
+3. ベンチプレス試技結果入力フォーム
+4. デッドリフト試技結果入力フォーム
+5. コメント試技結果入力フォーム
+
+各ステップに対応するテーブルのカラムは以下の通りです。
+
+#### ステップ構成と対応カラム
+| ステップ                     | 対応カラム                                                                                      |
+|------------------------------|---------------------------------------------------------------------------------------------|
+| **検量体重入力フォーム**     | - `weight` ("検量体重")                                                                      |
+| **スクワット試技結果入力フォーム** | - `squat_first_attempt` ("第1試技重量")  <br> - `squat_second_attempt` ("第2試技重量") <br> - `squat_third_attempt` ("第3試技重量")  <br> - `squat_first_attempt_result` ("第1試技判定結果")  <br> - `squat_second_attempt_result` ("第2試技判定結果")  <br> - `squat_third_attempt_result` ("第3試技判定結果") |
+| **ベンチプレス試技結果入力フォーム** | - `benchpress_first_attempt` ("第1試技重量")  <br> - `benchpress_second_attempt` ("第2試技重量")  <br> - `benchpress_third_attempt` ("第3試技重量")  <br> - `benchpress_first_attempt_result` ("第1試技判定結果")  <br> - `benchpress_second_attempt_result` ("第2試技判定結果")  <br> - `benchpress_third_attempt_result` ("第3試技判定結果") |
+| **デッドリフト試技結果入力フォーム** | - `deadlift_first_attempt` ("第1試技重量")  <br> - `deadlift_second_attempt` ("第2試技重量")  <br> - `deadlift_third_attempt` ("第3試技重量")  <br> - `deadlift_first_attempt_result` ("第1試技判定結果")  <br> - `deadlift_second_attempt_result` ("第2試技判定結果")  <br> - `deadlift_third_attempt_result` ("第3試技判定結果") |
+| **コメント入力フォーム**       | - `comment` ("反省点コメント")                                                               |
+
+#### 実装の特徴
+- **バリデーションと画面遷移**
+各フォームでは入力データのバリデーションを実行し、成功すれば次のフォームへ遷移します。バリデーションに失敗した場合は、ユーザーに再入力を促します。
+
+- **データ保存のタイミング**
+各フォームの段階ではデータベースに保存せず、最後のステップが完了した時点で全てのデータを一括してデータベースに保存します。
+
+
+
+
 ### 実装の流れ
 以下の手順に沿ってステップ入力フォームを実装しました。
 [参考記事: ステップフォームの使い方](https://edito.jp/corporate/231220/#i-3:~:text=%E8%B2%A2%E7%8C%AE%E3%81%97%E3%81%BE%E3%81%99%E3%80%82-,%E3%82%B9%E3%83%86%E3%83%83%E3%83%97%E3%83%95%E3%82%A9%E3%83%BC%E3%83%A0%E3%81%AE%E4%BD%BF%E3%81%84%E6%96%B9,-%E3%81%A7%E3%81%AF%E5%AE%9F%E9%9A%9B%E3%81%AB)
