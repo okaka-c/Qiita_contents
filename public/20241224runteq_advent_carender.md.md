@@ -147,9 +147,13 @@ competition_recordsテーブル用の入力フォームを5ステップに分割
 - **バリデーションと画面遷移**
 各フォームでは入力データのバリデーションを実行し、成功すれば次のフォームへ遷移します。バリデーションに失敗した場合は、ユーザーに再入力を促します。
 
-- **データ保存のタイミング**
+- **入力データをデータベースへ保存するタイミング**
 各フォームの段階ではデータベースに保存せず、最後のステップが完了した時点で全てのデータを一括してデータベースに保存します。
 
+#### 具体的な流れ
+::: note alert
+あとで書く
+:::
 
 ### 実装概要
 概要で記載されたゴール・条件に向けて、おおまかな実装手順を以下に示します。
@@ -170,7 +174,7 @@ competition_recordsテーブル用の入力フォームを5ステップに分割
 2. スクワット試技結果入力フォーム
 3. ベンチプレス試技結果入力フォーム
 4. デッドリフト試技結果入力フォーム
-5. コメント試技結果入力フォーム
+5. 振り返りコメント入力フォーム
 
 #### 2\. UIのデザイン設計
 各ステップの画面設計をします。
@@ -191,6 +195,194 @@ competition_recordsテーブル用の入力フォームを5ステップに分割
 <img width="auto" src="https://i.gyazo.com/465b2b9994e8f32e359da2ab1d1a86fc.png">
 
 #### 4\. 【Rails側】モデルの作成
+- **なぜモデルクラスを作成するか**
+各ステップの入力フォーム毎にデータのバリデーションを行いますが、この時点ではデータベースに保存はしません。
+最後のステップまで正常に完了したあとに、今までのステップのデータを一括してデータベースに保存します。
+そのため、各ステップの入力フォームは直接データベースに紐づいていません。
+そこで、`form_with`ヘルパーの`:model`オプションを利用して、`Active Record`以外のオブジェクトでもフォームを生成できるようにするために、`ActiveModel::Model`をインクルードしたクラスを作成しました。
+また、`Active Record`のようなバリデーション機能を使いたいため、`ActiveModel::Validations`もインクルードしました。
+https://railsguides.jp/active_model_basics.html
+
+
+- **各ステップ用のモデルを準備する**
+  `app/models/`配下に`record`ディレクトリを作成。各ステップ入力用のモデルクラスは`record`ディレクトリ配下に配置。
+  - ディレクトリ構成
+    ```bash
+      app/models
+      ├── record
+          ├── weigh_in.rb # 検量体重入力フォーム用
+          ├── squat.rb # スクワット試技結果入力フォーム用
+          ├── bench_press.rb # ベンチプレス試技結果入力フォーム用
+          ├── deadlift.rb # デッドリフト試技結果入力フォーム用
+          └── comment.rb # 振り返りコメント入力フォーム用
+    ```
+
+- **各モデルのコード例**
+  <details><summary> app/models/record/weigh_in.rb</summary>
+
+    ```ruby
+    module Record
+      class WeighIn
+        include ActiveModel::Model
+        include ActiveModel::Validations
+
+        attr_accessor :weight, :competition_id
+
+        validates :weight, presence: true, numericality: true
+        validate :unique_competition_id
+
+        private
+
+        def unique_competition_id
+          return unless CompetitionRecord.exists?(competition_id:)
+
+          errors.add(:competition_id, 'の試技結果はすでに存在しています')
+        end
+      end
+    end
+    ```
+  </details>
+  <details><summary>app/models/record/squat.rb</summary>
+    
+    ※squat.rbと, benchpress.rb, deadlift.rbはコードが同じなのでsquat.rbのみ抜粋。
+    ```ruby
+    module Record
+        class Squat
+          include ActiveModel::Model
+          include ActiveModel::Validations
+
+          attr_accessor :squat_first_attempt,
+                        :squat_second_attempt,
+                        :squat_third_attempt,
+                        :squat_first_attempt_result,
+                        :squat_second_attempt_result,
+                        :squat_third_attempt_result
+
+          # 初期化メソッド
+          def initialize(attributes = {})
+            super
+            @squat_first_attempt ||= nil
+            @squat_second_attempt ||= nil
+            @squat_third_attempt ||= nil
+            @squat_first_attempt_result ||= 'not_attempted'
+            @squat_second_attempt_result ||= 'not_attempted'
+            @squat_third_attempt_result ||= 'not_attempted'
+          end
+
+          # スクワット各試技のバリテーション設定
+          validates :squat_first_attempt, numericality: { allow_nil: true },
+                                          if: :should_validate_squat_first_attempt_numericality?
+          validates :squat_second_attempt, numericality: { allow_nil: true },
+                                          if: :should_validate_squat_second_attempt_numericality?
+          validates :squat_third_attempt, numericality: { allow_nil: true },
+                                          if: :should_validate_squat_third_attempt_numericality?
+
+          # スクワット試技判定結果のバリテーション設定
+          # 空は禁止
+          with_options presence: true do
+            validates :squat_first_attempt_result
+            validates :squat_second_attempt_result
+            validates :squat_third_attempt_result
+          end
+
+          # 重量の入力があったら成功か、失敗か選択させる
+          validate :squat_first_attempt_is_not_be_not_attempted, unless: :should_validate_squat_first_attempt_numericality?
+          validate :squat_second_attempt_is_not_be_not_attempted, unless: :should_validate_squat_second_attempt_numericality?
+          validate :squat_third_attempt_is_not_be_not_attempted, unless: :should_validate_squat_third_attempt_numericality?
+          # 成功か失敗選択時に重量が入力されていない
+          # スクワット
+          validate :squat_first_attempt_is_not_be_blank
+          validate :squat_second_attempt_is_not_be_blank
+          validate :squat_third_attempt_is_not_be_blank
+
+          private
+
+          # 重量の入力フォームに文字列が入力されていないか？
+          # 第一試技
+          def should_validate_squat_first_attempt_numericality?
+            squat_first_attempt.present? && Float(squat_first_attempt, exception: false).nil?
+          end
+
+          # 第二試技
+          def should_validate_squat_second_attempt_numericality?
+            squat_second_attempt.present? && Float(squat_second_attempt, exception: false).nil?
+          end
+
+          # 第三試技
+          def should_validate_squat_third_attempt_numericality?
+            squat_third_attempt.present? && Float(squat_third_attempt, exception: false).nil?
+          end
+
+          # カスタムバリデータ　スクワット判定結果
+          # 第一試技
+          def squat_first_attempt_is_not_be_not_attempted
+            if squat_first_attempt.present? && Float(squat_first_attempt,
+                                                    exception: false) >= 0 && squat_first_attempt_result == 'not_attempted'
+              errors.add(:squat_first_attempt_result, 'は成功か失敗かを選んでください')
+            end
+          end
+
+          # 第一試技
+          def squat_second_attempt_is_not_be_not_attempted
+            if squat_second_attempt.present? && Float(squat_second_attempt,
+                                                      exception: false) >= 0 && squat_second_attempt_result == 'not_attempted'
+              errors.add(:squat_second_attempt_result, 'は成功か失敗かを選んでください')
+            end
+          end
+
+          # 第二試技
+          def squat_third_attempt_is_not_be_not_attempted
+            if squat_third_attempt.present? && Float(squat_third_attempt,
+                                                    exception: false) >= 0 && squat_third_attempt_result == 'not_attempted'
+              errors.add(:squat_third_attempt_result, 'は成功か失敗かを選んでください')
+            end
+          end
+
+          # カスタムバリデータ 成功か失敗選択時に重量が入力されていない
+          # 第一試技
+          def squat_first_attempt_is_not_be_blank
+            if (squat_first_attempt_result == 'success' ||
+                squat_first_attempt_result == 'failure') &&
+              squat_first_attempt.blank?
+              errors.add(:squat_first_attempt, 'は成功か失敗を選択したときは重量を入力して下さい。')
+            end
+          end
+
+          # 第二試技
+          def squat_second_attempt_is_not_be_blank
+            if (squat_second_attempt_result == 'success' ||
+                squat_second_attempt_result == 'failure') &&
+              squat_second_attempt.blank?
+              errors.add(:squat_second_attempt, 'は成功か失敗を選択したときは重量を入力して下さい。')
+            end
+          end
+
+          # 第三試技
+          def squat_third_attempt_is_not_be_blank
+            if (squat_third_attempt_result == 'success' ||
+                squat_third_attempt_result == 'failure') &&
+              squat_third_attempt.blank?
+              errors.add(:squat_third_attempt, 'は成功か失敗を選択したときは重量を入力して下さい。')
+            end
+          end
+        end
+      end
+
+  ```
+  </details>
+  <details><summary>app/models/record/comment.rb</summary>
+
+  ```ruby
+    module Record
+      class Comment
+        include ActiveModel::Model
+        include ActiveModel::Attributes
+        attribute :comment, :string, default: nil
+      end
+    end
+  ```
+  </details>
+
 #### 5\. 【Rails側】コントローラの作成
 #### 6\. 【Rails側】ルーティングの設定
 #### 7\. 【Rails側】ビューファイルの作成
