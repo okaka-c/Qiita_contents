@@ -167,6 +167,7 @@ competition_recordsテーブル用の入力フォームを5ステップに分割
 **7\. 【Rails側】ビューファイルの作成**
 
 ### 実装詳細
+※ **6.【Rails側】ルーティングの設定**と**7.【Rails側】ビューファイルの作成**は詳細な実装説明は割愛致します。
 #### 1\. ステップ入力フォームの画面計画
 複数の入力項目をグループ分けし、ステップ数を決めます。
 `competition_records`テーブル用の入力フォームを5ステップに分割しました。
@@ -203,9 +204,8 @@ competition_recordsテーブル用の入力フォームを5ステップに分割
 また、`Active Record`のようなバリデーション機能を使いたいため、`ActiveModel::Validations`もインクルードしました。
 https://railsguides.jp/active_model_basics.html
 
-
 - **各ステップ用のモデルを準備する**
-  `app/models/`配下に`record`ディレクトリを作成。各ステップ入力用のモデルクラスは`record`ディレクトリ配下に配置。
+  `app/models/`配下に`record`ディレクトリを作成。各ステップ入力フォームに対応したモデルは`record`ディレクトリ配下に配置。
   - ディレクトリ構成
     ```bash
       app/models
@@ -384,8 +384,180 @@ https://railsguides.jp/active_model_basics.html
   </details>
 
 #### 5\. 【Rails側】コントローラの作成
-#### 6\. 【Rails側】ルーティングの設定
-#### 7\. 【Rails側】ビューファイルの作成
+- **各モデルに対応したコントローラ準備する**
+`app/controllers/`配下に`record`ディレクトリを作成。各ステップ入力フォームに対応したコントローラは`record`ディレクトリ配下に配置。
+  - ディレクトリ構成
+    ```bash
+      app/controllers
+      ├── record
+          ├── weigh_ins_controller.rb # 検量体重入力フォーム用
+          ├── squats_controller.rb # スクワット試技結果入力フォーム用
+          ├── bench_presses_controller.rb # ベンチプレス試技結果入力フォーム用
+          ├── deadlifts_controller.rb # デッドリフト試技結果入力フォーム用
+          └── comments_controller.rb # 振り返りコメント入力フォーム用
+    ```
+- **各コントローラのコード例**
+::: note alert
+  sessionの解説
+:::
+  - **1ステップ目**
+    - `new`アクション
+    `Record::WeighIn`クラスのインスタンスを生成し、新規検量体重入力フォームをレンダリング
+    - `create`アクション
+    フォームから送信されたデータ（`weigh_in_params`）を使って、`Record::WeighIn`クラスのインスタンスを生成.
+      - バリデーション実行
+        - バリデーション成功
+          - `session` に `:record` キーを新規追加し、ユーザーが入力したデータを一時保存します。
+          - 次のステップ（スクワット試技結果入力フォーム）にリダイレクトします。
+        - バリデーション失敗
+          - 新規検量体重入力フォームを再表示し、バリデーションエラーメッセージを表示します。
+
+    **コード例**
+    <details><summary>app/controllers/record/weigh_ins_controller.rb</summary>
+
+      ```ruby
+      module Record
+        class WeighInsController < ApplicationController
+
+          def new
+            @weigh_in = Record::WeighIn.new
+          end
+
+          def create
+            @competition = current_user.competitions.find(params[:competition_id])
+            @weigh_in = Record::WeighIn.new(weigh_in_params)
+            if @weigh_in.valid?
+              session[:record] = {
+                competition_id: @weigh_in.competition_id,
+                weight: @weigh_in.weight
+              }
+              redirect_to new_competition_squat_path, success: t('.success')
+            else
+              flash.now[:danger] = t('.danger')
+              render :new, status: :unprocessable_entity
+            end
+          end
+
+          private
+
+          def weigh_in_params
+            params.require(:record_weigh_in).permit(:weight).merge(competition_id: params[:competition_id])
+          end
+        end
+      end
+      ```
+    </details>
+
+  - **2ステップ目**
+    - `new`アクション
+    `Record::Squat`クラスのインスタンスを生成し、新規スクワット入力フォームをレンダリング
+    - `create`アクション
+    フォームから送信されたデータ（`squat_params`）を使って、`Record::Squat`クラスのインスタンスを生成.
+      - バリデーション実行
+        - バリデーション成功
+          - 既存のセッションデータ `session[:record]`に試技結果入力データを追加します。
+          - 次のステップ（ベンチプレス試技結果入力フォーム）にリダイレクトします。
+        - バリデーション失敗
+          - 新規スクワット入力フォームを再表示し、バリデーションエラーメッセージを表示します。
+
+    **コード例**
+    <details><summary>app/controllers/record/squats_controller.rb</summary>
+
+    ```ruby
+      module Record
+        class SquatsController < ApplicationController
+
+          def new
+            @squat = Record::Squat.new
+          end
+
+          def create
+            @competition = current_user.competitions.find(params[:competition_id])
+            @squat = Record::Squat.new(squat_params)
+            if @squat.valid?
+              session[:record].merge!({
+                                        squat_first_attempt: @squat.squat_first_attempt,
+                                        squat_second_attempt: @squat.squat_second_attempt,
+                                        squat_third_attempt: @squat.squat_third_attempt,
+                                        squat_first_attempt_result: @squat.squat_first_attempt_result,
+                                        squat_second_attempt_result: @squat.squat_second_attempt_result,
+                                        squat_third_attempt_result: @squat.squat_third_attempt_result
+                                      })
+              redirect_to new_competition_bench_presse_path, success: t('.success')
+            else
+              flash.now[:danger] = t('.danger')
+              render :new, status: :unprocessable_entity
+            end
+          end
+
+          private
+
+          def squat_params
+            params.require(:record_squat).permit(
+              :squat_first_attempt, :squat_first_attempt_result,
+              :squat_second_attempt, :squat_second_attempt_result,
+              :squat_third_attempt, :squat_third_attempt_result
+            )
+          end
+        end
+      end
+    ```
+    </details>
+  - **3ステップ目〜4ステップ目**
+
+    ※スクワット入力ステップと同じ流れなので割愛致します。
+
+  - **5ステップ目**
+    - `new`アクション
+    `Record::Comment`クラスのインスタンスを生成し、新規コメント入力フォームをレンダリング
+    - `create`アクション
+    フォームから送信されたデータ（`comment_params`）を使って、`Record::Comment`クラスのインスタンスを生成.
+      - バリデーション実行
+        - バリデーション成功
+          - 既存のセッションデータ `session[:record]`にコメント入力データを追加します。
+          - `competition_records`テーブルに、ステップ入力フォーム1~5で保存したセッションデータ `session[:record]`を一括挿入します。
+        - バリデーション失敗
+          - 新規コメント入力フォームを再表示し、バリデーションエラーメッセージを表示します。
+
+    **コード例**
+    <details><summary>app/controllers/record/squats_controller.rb</summary>
+
+      ```ruby
+      module Record
+        class CommentsController < ApplicationController
+
+          def new
+            @comment = Record::Comment.new
+          end
+
+          def create
+            @competition = current_user.competitions.find(params[:competition_id])
+            @comment = Record::Comment.new(comment_params)
+            if @comment.valid?
+              session[:record].merge!({ comment: @comment.comment })
+              @competition_record_params = session[:record]
+
+              # ここでcompetition_recordsテーブルに一括保存します
+              CompetitionRecord.create!(@competition_record_params)
+              # 一括保存ができたらsession[:record]の値を消します。
+              session.delete(:record)
+              redirect_to competition_path(@competition), success: t('.success')
+            else
+              flash.now[:danger] = t('.danger')
+              render :new, status: :unprocessable_entity
+            end
+          end
+
+          private
+
+          def comment_params
+            params.require(:record_comment).permit(:comment)
+          end
+        end
+      end
+
+      ```
+    </details>
 
 ### おわりに
 
