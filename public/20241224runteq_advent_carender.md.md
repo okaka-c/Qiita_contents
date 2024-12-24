@@ -396,10 +396,8 @@ https://railsguides.jp/active_model_basics.html
           ├── deadlifts_controller.rb # デッドリフト試技結果入力フォーム用
           └── comments_controller.rb # 振り返りコメント入力フォーム用
     ```
+
 - **各コントローラのコード例**
-::: note alert
-  sessionの解説
-:::
   - **1ステップ目**
     - `new`アクション
     `Record::WeighIn`クラスのインスタンスを生成し、新規検量体重入力フォームをレンダリング
@@ -411,7 +409,6 @@ https://railsguides.jp/active_model_basics.html
           - 次のステップ（スクワット試技結果入力フォーム）にリダイレクトします。
         - バリデーション失敗
           - 新規検量体重入力フォームを再表示し、バリデーションエラーメッセージを表示します。
-
     **コード例**
     <details><summary>app/controllers/record/weigh_ins_controller.rb</summary>
 
@@ -447,6 +444,14 @@ https://railsguides.jp/active_model_basics.html
       end
       ```
     </details>
+::: note warn
+**sessionメソッドを使う理由**
+HTTPはステートレスプロトコルであり、リクエストごとに状態が維持されません。
+そのため、create アクションでバリデーション成功後に次のステップ入力フォームにリダイレクトすると、
+フォームから送信されたデータは失われてしまいます。
+1ステップ目から最後のステップまで受け取ったデータを保持するために、session を使用してデータを保存します。
+
+:::
 
   - **2ステップ目**
     - `new`アクション
